@@ -20,33 +20,33 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite://storage.db")
 os.makedirs("databases", exist_ok=True)
 db = DAL(DATABASE_URL, pool_size=1, migrate=True, folder="databases")
 
+
+def _table_exists(tablename: str) -> bool:
+    """Kiểm tra bảng đã tồn tại thật trong database chưa (query trực tiếp,
+    không dựa vào file 'ghi nhớ' local của pyDAL — file này có thể bị mất
+    khi container trên Render khởi động lại)."""
+    try:
+        db.executesql(f"SELECT 1 FROM {tablename} LIMIT 1;")
+        db.commit()
+        return True
+    except Exception:
+        db.rollback()
+        return False
+
+
+_item_exists = _table_exists("item")
+
 # Khai báo bảng bằng Python — pyDAL tự tạo bảng thật trong database,
 # tự sinh SQL, tự tạo form/CRUD tương ứng.
-#
-# Lưu ý: trên môi trường container không có ổ đĩa cố định (vd Render free
-# tier), file pyDAL dùng để "nhớ" là đã tạo bảng rồi có thể bị mất khi
-# container khởi động lại, dù bảng thật vẫn còn trong Postgres. Lúc đó pyDAL
-# sẽ cố tạo lại và bị lỗi "already exists". Bắt lỗi này và chuyển sang
-# fake_migrate (chỉ ghi nhận lại là đã khớp, không tạo lại) để an toàn.
-try:
-    db.define_table(
-        "item",
-        Field("name", "string", length=128, notnull=True),
-        Field("price", "double", notnull=True),
-        Field("quantity", "integer", default=0),
-    )
-except Exception as exc:
-    if "already exists" in str(exc).lower():
-        db.rollback()
-        db.define_table(
-            "item",
-            Field("name", "string", length=128, notnull=True),
-            Field("price", "double", notnull=True),
-            Field("quantity", "integer", default=0),
-            fake_migrate=True,
-        )
-    else:
-        raise
+# fake_migrate=True nếu bảng đã tồn tại sẵn (chỉ ghi nhận lại, không tạo lại
+# — tránh lỗi "already exists" khi container khởi động lại nhiều lần).
+db.define_table(
+    "item",
+    Field("name", "string", length=128, notnull=True),
+    Field("price", "double", notnull=True),
+    Field("quantity", "integer", default=0),
+    fake_migrate=_item_exists,
+)
 
 
 def list_items():
