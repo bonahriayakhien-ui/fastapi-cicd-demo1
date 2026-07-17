@@ -1,0 +1,8 @@
+timestamp: 2026-07-17T14:26:09.635472
+CREATE TABLE "item"(
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "name" CHAR(128) NOT NULL,
+    "price" DOUBLE NOT NULL,
+    "quantity" INTEGER
+);
+success!
