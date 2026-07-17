@@ -22,12 +22,31 @@ db = DAL(DATABASE_URL, pool_size=1, migrate=True, folder="databases")
 
 # Khai báo bảng bằng Python — pyDAL tự tạo bảng thật trong database,
 # tự sinh SQL, tự tạo form/CRUD tương ứng.
-db.define_table(
-    "item",
-    Field("name", "string", length=128, notnull=True),
-    Field("price", "double", notnull=True),
-    Field("quantity", "integer", default=0),
-)
+#
+# Lưu ý: trên môi trường container không có ổ đĩa cố định (vd Render free
+# tier), file pyDAL dùng để "nhớ" là đã tạo bảng rồi có thể bị mất khi
+# container khởi động lại, dù bảng thật vẫn còn trong Postgres. Lúc đó pyDAL
+# sẽ cố tạo lại và bị lỗi "already exists". Bắt lỗi này và chuyển sang
+# fake_migrate (chỉ ghi nhận lại là đã khớp, không tạo lại) để an toàn.
+try:
+    db.define_table(
+        "item",
+        Field("name", "string", length=128, notnull=True),
+        Field("price", "double", notnull=True),
+        Field("quantity", "integer", default=0),
+    )
+except Exception as exc:
+    if "already exists" in str(exc).lower():
+        db.rollback()
+        db.define_table(
+            "item",
+            Field("name", "string", length=128, notnull=True),
+            Field("price", "double", notnull=True),
+            Field("quantity", "integer", default=0),
+            fake_migrate=True,
+        )
+    else:
+        raise
 
 
 def list_items():
